@@ -84,10 +84,10 @@ packages:
     dependency: "direct main"
     description:
       name: grovs_flutter_plugin
-      sha256: "5099bce99d399133276a407c522aaab19179971471db69d1eee9e1e5879278ee"
+      sha256: b7399444bb6932861a9613210a7457df04df2e01e77c77ae53232b4dd91944bb
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "1.0.1"
   leak_tracker:
     dependency: transitive
     description:
