@@ -1,4 +1,4 @@
-package com.example.grovs_flutter_example_app
+package io.grovs.grovs_flutter_example_app
 
 import io.flutter.embedding.android.FlutterActivity
 

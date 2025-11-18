@@ -1,122 +1,323 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
-void main() {
+import 'package:flutter/services.dart';
+import 'package:grovs_flutter_plugin/grovs.dart';
+import 'package:grovs_flutter_plugin/models/grovs_link.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Grovs SDK
+  final grovs = Grovs();
+  try {
+    await grovs.setDebugLevel('info');
+
+    // Set user information (optional)
+    await grovs.setUserIdentifier('demo-user-123');
+    await grovs.setUserAttributes({
+      'name': 'Demo User',
+      'email': 'demo@example.com',
+      'app': 'Flutter Demo',
+    });
+  } catch (e) {
+    print('Failed to configure Grovs: $e');
+  }
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String _platformVersion = 'Unknown';
+  String _generatedLink = '';
+  String _lastDeeplinkReceived = 'None';
+  final _grovs = Grovs();
+  StreamSubscription<DeeplinkDetails>? _deeplinkSubscription;
+  bool _isGenerating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    initPlatformState();
+    setupDeeplinkListener();
   }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
+  void dispose() {
+    _deeplinkSubscription?.cancel();
+    super.dispose();
+  }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  void setupDeeplinkListener() {
+    _deeplinkSubscription = _grovs.onDeeplinkReceived.listen((deeplinkDetails) {
+      setState(() {
+        _lastDeeplinkReceived =
+            'Link: ${deeplinkDetails.link}\nData: ${deeplinkDetails.data}\nTracking: ${deeplinkDetails.tracking?.toMap()}';
+      });
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      // Show a dialog when deeplink is received
+      if (mounted) {
+        // Defer the dialog to the next frame to ensure Material localizations are available
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Deeplink Received'),
+                content: Text(
+                  'Link: ${deeplinkDetails.link}\n\nPayload: ${deeplinkDetails.data}',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        });
+      }
     });
   }
 
+  Future<void> initPlatformState() async {
+    String platformVersion;
+    try {
+      platformVersion =
+          await _grovs.getPlatformVersion() ?? 'Unknown platform version';
+    } on PlatformException {
+      platformVersion = 'Failed to get platform version.';
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _platformVersion = platformVersion;
+    });
+  }
+
+  Future<void> generateLink() async {
+    setState(() {
+      _isGenerating = true;
+    });
+
+    try {
+      final link = await _grovs.generateLink(
+        GenerateLinkParams(
+          title: 'Check out this Flutter app!',
+          subtitle: 'Built with Grovs SDK',
+          imageURL:
+              'https://flutter.dev/assets/images/shared/brand/flutter/logo/flutter-lockup.png',
+          data: {
+            'screen': 'flutter-home',
+            'userId': 'demo-user-123',
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+          tags: ['demo', 'flutter'],
+          customRedirects: CustomRedirects(
+            ios: CustomLinkRedirect(
+              url: 'https://apple.com',
+              openAppIfInstalled: true,
+            ),
+            android: CustomLinkRedirect(
+              url: 'https://android.com',
+              openAppIfInstalled: true,
+            ),
+            desktop: CustomLinkRedirect(url: 'https://web.com'),
+          ),
+          showPreviewIos: false,
+          showPreviewAndroid: true,
+          tracking: TrackingParams(
+            utmCampaign: 'spring_sale',
+            utmSource: 'newsletter',
+            utmMedium: 'email',
+          ),
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          _generatedLink = link;
+          _isGenerating = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link generated successfully!')),
+        );
+      }
+    } on GrovsException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to generate link: ${e.message}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+    return MaterialApp(
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Grovs Flutter Example'), actions: []),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Platform Info',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Running on: $_platformVersion'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Generate Link',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _isGenerating ? null : generateLink,
+                        child: _isGenerating
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Generate Grovs Link'),
+                      ),
+                      if (_generatedLink.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Generated Link:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          _generatedLink,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(
+                              ClipboardData(text: _generatedLink),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Link copied to clipboard!'),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.copy),
+                          label: const Text('Copy Link'),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            try {
+                              if (await canLaunchUrl(
+                                Uri.parse(_generatedLink),
+                              )) {
+                                await launchUrl(
+                                  Uri.parse(_generatedLink),
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Could not launch link'),
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error opening link: $e'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_browser),
+                          label: const Text('Open Link'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Last Deeplink Received',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _lastDeeplinkReceived,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
