@@ -22,7 +22,7 @@ void main() async {
       'app': 'Flutter Demo',
     });
   } catch (e) {
-    print('Failed to configure Grovs: $e');
+    debugPrint('Failed to configure Grovs: $e');
   }
 
   runApp(const MyApp());
@@ -42,18 +42,43 @@ class _MyAppState extends State<MyApp> {
   final _grovs = Grovs();
   StreamSubscription<DeeplinkDetails>? _deeplinkSubscription;
   bool _isGenerating = false;
+  bool _sdkEnabled = true;
+  bool _isChangingConsent = false;
+  String _lastError = 'None';
+  StreamSubscription<GrovsError>? _errorSubscription;
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
     setupDeeplinkListener();
+    _errorSubscription = _grovs.onError.listen((error) {
+      if (!mounted) return;
+      setState(() {
+        _lastError = '${error.code.nativeName}: ${error.message}';
+      });
+    });
   }
 
   @override
   void dispose() {
     _deeplinkSubscription?.cancel();
+    _errorSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _setSDKEnabled(bool enabled) async {
+    setState(() => _isChangingConsent = true);
+    try {
+      await _grovs.setSDK(enabled);
+      if (!mounted) return;
+      setState(() => _sdkEnabled = enabled);
+    } on GrovsException catch (error) {
+      if (!mounted) return;
+      setState(() => _lastError = error.toString());
+    } finally {
+      if (mounted) setState(() => _isChangingConsent = false);
+    }
   }
 
   void setupDeeplinkListener() {
@@ -171,6 +196,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
+      navigatorObservers: [Grovs.navigatorObserver],
       home: Scaffold(
         appBar: AppBar(title: const Text('Grovs Flutter Example'), actions: []),
         body: SingleChildScrollView(
@@ -287,6 +313,135 @@ class _MyAppState extends State<MyApp> {
                           label: const Text('Open Link'),
                         ),
                       ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Revenue Tracking',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            await _grovs.logCustomPurchase(
+                              type: TransactionType.buy,
+                              priceInCents: 999,
+                              currency: 'USD',
+                              productId: 'premium_monthly',
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Custom purchase logged!'),
+                                ),
+                              );
+                            }
+                          } on GrovsException catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Failed to log purchase: ${e.message}',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: const Text('Log Custom Purchase (\$9.99)'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Consent',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('SDK enabled'),
+                        value: _sdkEnabled,
+                        onChanged: _isChangingConsent ? null : _setSDKEnabled,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Last SDK error',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(_lastError, style: const TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Analytics',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await Grovs().track(
+                            'demo_button_tapped',
+                            properties: {'source': 'example_app'},
+                            tags: ['demo'],
+                          );
+                        },
+                        child: const Text('Track custom event'),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              settings: const RouteSettings(
+                                name: 'DemoSecondScreen',
+                              ),
+                              builder: (_) => Scaffold(
+                                appBar: AppBar(
+                                  title: const Text('Second screen'),
+                                ),
+                                body: const Center(
+                                  child: Text('Auto screen view fired'),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Open second screen'),
+                      ),
                     ],
                   ),
                 ),

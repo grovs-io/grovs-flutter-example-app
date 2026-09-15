@@ -1,16 +1,13 @@
 PODS:
   - Flutter (1.0.0)
-  - Grovs (2.2)
-  - grovs_flutter_plugin (0.0.1):
+  - Grovs (3.0.0)
+  - grovs_flutter_plugin (3.0.0):
     - Flutter
-    - Grovs (~> 2.2)
-  - url_launcher_ios (0.0.1):
-    - Flutter
+    - Grovs (~> 3.0)
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - grovs_flutter_plugin (from `.symlinks/plugins/grovs_flutter_plugin/ios`)
-  - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 SPEC REPOS:
   trunk:
@@ -21,15 +18,12 @@ EXTERNAL SOURCES:
     :path: Flutter
   grovs_flutter_plugin:
     :path: ".symlinks/plugins/grovs_flutter_plugin/ios"
-  url_launcher_ios:
-    :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  Grovs: 104a8bbc553577027e14d5ce2aadbbc708bb1de0
-  grovs_flutter_plugin: 444fa49e450833848af8ac73ea04f138d1ff1519
-  url_launcher_ios: bb13df5870e8c4234ca12609d04010a21be43dfa
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  Grovs: 6210bb12d8dc1e5fd186c5b200428c135f6b4283
+  grovs_flutter_plugin: f34c8b2171dbd9088b4ecfddf1634d829a992e89
 
-PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+PODFILE CHECKSUM: 53a6aebc29ccee84c41f92f409fc20cd4ca011f1
 
 COCOAPODS: 1.16.2
