@@ -35,6 +35,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>GrovsApiKey</key>
 	<string>grovsf_fcb95196e44935b07bf07445076edbc6f3341de83b8a6841ea2727c396a126c9</string>
 	<key>GrovsEnabled</key>
